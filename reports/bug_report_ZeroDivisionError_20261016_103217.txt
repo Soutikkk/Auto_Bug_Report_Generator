@@ -1,0 +1,30 @@
+==============================================================================
+                        AUTO BUG REPORT GENERATOR
+==============================================================================
+1. Date & Time       : 2026-10-16 10:32:17
+2. Error Type        : ZeroDivisionError
+3. Error Message     : division by zero
+4. File Name         : C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\sample_code.py
+5. Line Number       : 27
+6. Function / Scope  : calculate_average()
+7. Failing Code Line : average = total_score / number_of_students
+==============================================================================
+SHORT TRACEBACK:
+==============================================================================
+Traceback (most recent call last):
+  File "C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\bug_reporter.py", line 272, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\sample_code.py", line 27, in calculate_average
+    average = total_score / number_of_students
+              ~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+ZeroDivisionError: division by zero
+==============================================================================
+SYSTEM CONTEXT:
+==============================================================================
+Python Version       : 3.12.4
+Operating System     : win32
+Execution Directory  : C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator
+==============================================================================
+                     END OF REPORT
+==============================================================================

@@ -1,0 +1,29 @@
+==============================================================================
+                        AUTO BUG REPORT GENERATOR
+==============================================================================
+1. Date & Time       : 2026-10-16 10:32:17
+2. Error Type        : KeyError
+3. Error Message     : 'account_id'
+4. File Name         : C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\sample_code.py
+5. Line Number       : 64
+6. Function / Scope  : parse_user_profile()
+7. Failing Code Line : account_id = user_data["account_id"]
+==============================================================================
+SHORT TRACEBACK:
+==============================================================================
+Traceback (most recent call last):
+  File "C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\sample_code.py", line 83, in run_all_samples
+    parse_user_profile()
+  File "C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\sample_code.py", line 64, in parse_user_profile
+    account_id = user_data["account_id"]
+                 ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'account_id'
+==============================================================================
+SYSTEM CONTEXT:
+==============================================================================
+Python Version       : 3.12.4
+Operating System     : win32
+Execution Directory  : C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator
+==============================================================================
+                     END OF REPORT
+==============================================================================

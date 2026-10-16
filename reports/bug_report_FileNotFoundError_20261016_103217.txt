@@ -1,0 +1,27 @@
+==============================================================================
+                        AUTO BUG REPORT GENERATOR
+==============================================================================
+1. Date & Time       : 2026-10-16 10:32:17
+2. Error Type        : FileNotFoundError
+3. Error Message     : [Errno 2] No such file or directory: 'non_existent_database.ini'
+4. File Name         : C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\sample_code.py
+5. Line Number       : 43
+6. Function / Scope  : load_configuration_file()
+7. Failing Code Line : with open(file_name, "r") as f:
+==============================================================================
+SHORT TRACEBACK:
+==============================================================================
+Traceback (most recent call last):
+  File "C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator\sample_code.py", line 43, in load_configuration_file
+    with open(file_name, "r") as f:
+         ^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'non_existent_database.ini'
+==============================================================================
+SYSTEM CONTEXT:
+==============================================================================
+Python Version       : 3.12.4
+Operating System     : win32
+Execution Directory  : C:\Users\USER\Desktop\MISCELLANEOUS\Mini Projects\Auto Bug Report Generator
+==============================================================================
+                     END OF REPORT
+==============================================================================
