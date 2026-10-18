@@ -1,4 +1,3 @@
-```python
 """
 Auto Bug Report Generator - Command Line Interface (CLI)
 ========================================================
@@ -6,7 +5,7 @@ Features:
 - Run sample bug demonstrations.
 - Execute Python scripts with automatic error reporting.
 - List and view saved bug reports.
-- Support interactive and command-line modes.
+- Support interactive, web dashboard, and command-line modes.
 """
 
 import argparse
@@ -16,6 +15,7 @@ from pathlib import Path
 
 from bug_reporter import BugReportGenerator, install_global_hook, logger
 import sample_code
+import web_server
 
 
 REPORTS_DIR = Path("reports")
@@ -210,11 +210,12 @@ def interactive_menu():
         print(" 2. Run a Python script with bug monitoring")
         print(" 3. List saved bug reports")
         print(" 4. View a bug report")
-        print(" 5. Exit")
+        print(" 5. Launch Web Dashboard & Studio (Frontend)")
+        print(" 6. Exit")
         print("=" * 55)
 
         try:
-            choice = input("Enter your choice (1-5): ").strip()
+            choice = input("Enter your choice (1-6): ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n\nExiting Auto Bug Report Generator.")
             break
@@ -273,11 +274,14 @@ def interactive_menu():
                 print("[Warning] No report selected.")
 
         elif choice == "5":
+            web_server.run_web_server()
+
+        elif choice == "6":
             print("\nExiting Auto Bug Report Generator. Goodbye!\n")
             break
 
         else:
-            print("[Error] Please select a number between 1 and 5.")
+            print("[Error] Please select a number between 1 and 6.")
 
 
 # ============================================================
@@ -295,6 +299,12 @@ def parse_arguments(argv=None):
     )
 
     actions = parser.add_mutually_exclusive_group()
+
+    actions.add_argument(
+        "--web",
+        action="store_true",
+        help="Launch the modern Web Dashboard and Diagnostic Studio.",
+    )
 
     actions.add_argument(
         "--demo",
@@ -346,6 +356,10 @@ def main(argv=None):
     args = parse_arguments(argv)
     reports_dir = Path(args.reports_dir).expanduser()
 
+    if args.web:
+        web_server.run_web_server()
+        return 0
+
     if args.demo:
         try:
             sample_code.run_all_samples()
@@ -385,4 +399,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-```

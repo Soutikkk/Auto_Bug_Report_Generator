@@ -1,188 +1,123 @@
+# 🐞 Auto Bug Report Generator & Web Diagnostic Studio
 
-# 🐞 Auto Bug Report Generator
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/dependencies-Zero%20External-brightgreen.svg)](#)
+[![Interface](https://img.shields.io/badge/ui-Modern%20Glassmorphism-6366f1.svg)](#)
 
-A lightweight Python tool that automatically generates detailed bug reports when exceptions occur. It captures error information, traceback details, source code location, and system information to help developers debug problems faster.
+An intelligent, zero-overhead diagnostic framework that intercepts uncaught Python exceptions, isolates stack frames, extracts system context, and writes standardized, human-readable bug reports in real-time.
+
+Now includes **AutoBug.io Studio**, a modern glassmorphic web dashboard to visualize runtime errors, simulate bug scenarios, inspect call stacks, and synthesize issue reports with automated remediation insights.
+
+---
 
 ## ✨ Features
 
-- **Automatic Bug Reporting:** Generates reports when exceptions occur.
-- **Multiple Monitoring Methods:** Supports decorators, context managers, and a global exception hook.
-- **Sample Error Demonstrations:** Includes examples of `ZeroDivisionError`, `FileNotFoundError`, and `KeyError`.
-- **Custom Script Execution:** Runs Python scripts with automatic bug reporting enabled.
-- **Report Management:** Lists and displays previously generated bug reports.
-- **Timestamped Reports:** Saves reports as text files in the `reports/` directory.
-- **No External Dependencies:** Uses Python's built-in standard library.
+- **Automated Exception Capture**: Intercepts unhandled errors at the function, block, or global interpreter level.
+- **Precision Diagnostics**: Records timestamp, exception type, error message, failing file, line number, scope, isolated failing statement, full traceback, and OS context.
+- **Zero External Dependencies**: Powered entirely by the Python standard library (`traceback`, `datetime`, `logging`, `pathlib`, `http.server`).
+- **Interactive Web Dashboard**:
+  - **Metrics & KPIs**: Track total isolated crashes, frequent exception classes, and diagnostic coverage.
+  - **Report Explorer**: Filter, search, and inspect `.txt` bug reports with syntax highlighting.
+  - **Live Bug Studio**: Test custom tracebacks or preset templates (ZeroDivisionError, KeyError, FileNotFoundError, etc.) and generate production-grade reports with a single click.
+  - **Automated Remediation Insights**: Contextual suggestions to help patch bugs immediately.
+  - **One-Click Export**: Copy raw report text, GitHub-flavored markdown issue snippets, or export as `.txt`.
 
-## 📂 Project Structure
+---
 
-```text
-Auto_Bug_Report_Generator/
-├── bug_reporter.py
-├── main.py
-├── sample_code.py
-├── reports/
-└── README.md
-```
+## 🚀 Quick Start
 
-## 🛠️ Requirements
-
-- Python 3.8 or newer
-- Visual Studio Code or another Python editor
-- No additional Python packages required
-
-## 🚀 Installation
-
-### 1. Clone the repository
+### 1. Launch the Web Dashboard & Studio
+Launch the local web server and open the interactive dashboard in your browser:
 
 ```bash
-git clone <repository-url>
+# Directly via web server:
+python web_server.py
+
+# Or via the CLI runner:
+python main.py --web
 ```
+Open your browser to: **`http://localhost:8080/`**
 
-### 2. Navigate to the project directory
-
-```bash
-cd Auto_Bug_Report_Generator-main
-```
-
-### 3. Run the application
+### 2. Interactive CLI Mode
+If you prefer running inside the terminal:
 
 ```bash
 python main.py
 ```
+This presents an interactive menu to run demos, monitor scripts, or inspect saved `.txt` reports.
 
-If your system uses `python3`, run:
-
-```bash
-python3 main.py
-```
-
-## 💻 Usage
-
-### Run the interactive menu
-
-```bash
-python main.py
-```
-
-### Run the sample demonstrations
-
+### 3. Run Sample Bug Demonstrations
 ```bash
 python main.py --demo
 ```
 
-### Run a Python script with automatic bug reporting
-
+### 4. Monitor Any Python Script
+Execute any target Python script with automatic crash reporting active:
 ```bash
 python main.py --run path/to/your_script.py
 ```
 
-### List generated bug reports
+---
 
-```bash
-python main.py --list
-```
+## 🛠️ Integration Methods
 
-### View a specific bug report
-
-```bash
-python main.py --view reports/your_report_filename.txt
-```
-
-Replace the example filename with an existing report in the `reports/` directory.
-
-### Display available command-line options
-
-```bash
-python main.py --help
-```
-
-## 🔍 Monitoring Methods
-
-### 1. Decorator
-
-Use the `auto_report` decorator to monitor a function for exceptions.
+### Method 1: Decorator (`@auto_report`)
+Wrap functions to automatically generate reports whenever an uncaught exception is raised:
 
 ```python
 from bug_reporter import auto_report
 
-@auto_report(reports_dir="reports", reraise=True)
-def divide(a, b):
-    return a / b
-
-try:
-    divide(10, 0)
-except ZeroDivisionError:
-    print("Bug report generated!")
+@auto_report(reports_dir="reports", reraise=False)
+def calculate_average(total, count):
+    return total / count  # Catches ZeroDivisionError if count is 0
 ```
 
-### 2. Context Manager
-
-Use `MonitorErrors` to monitor a block of code.
+### Method 2: Context Manager (`MonitorErrors`)
+Scope a sensitive code block (e.g. network requests, file I/O) without decorating the full function:
 
 ```python
 from bug_reporter import MonitorErrors
 
-with MonitorErrors(reports_dir="reports", reraise=True):
-    result = 10 / 0
+with MonitorErrors(reports_dir="reports", reraise=False) as monitor:
+    with open("config.json", "r") as f:
+        data = f.read()
+
+if monitor.report_path:
+    print(f"Handled safely! Report created: {monitor.report_path}")
 ```
 
-### 3. Global Exception Hook
-
-Automatically report uncaught exceptions in the running Python process.
+### Method 3: Global Interpreter Hook (`install_global_hook`)
+Attach a safety net across the entire application. Any crash before process termination will be saved:
 
 ```python
 from bug_reporter import install_global_hook
 
 install_global_hook(reports_dir="reports")
 
-# Unhandled exceptions will generate bug reports.
+# Application entry point continues normally...
 ```
-
-## 📄 Bug Report Information
-
-Generated reports can contain:
-
-- Date and time of the exception
-- Exception type and error message
-- Source file and line number
-- Function name
-- Failing source code line, when available
-- Full traceback
-- Python version
-- Operating system information
-- Current working directory
-
-Reports are saved in the `reports/` directory with filenames similar to:
-
-```text
-bug_report_<ErrorType>_<YYYYMMDD_HHMMSS>.txt
-```
-
-## 🎯 Project Objective
-
-The objective of this project is to simplify debugging by automating the collection of useful error information. Instead of manually searching through tracebacks, developers can use generated reports to understand and investigate exceptions more efficiently.
-
-## ⚠️ Limitations
-
-- The tool focuses on Python exceptions and does not detect every logical or design bug.
-- Caught exceptions are not automatically reported by the global exception hook.
-- Bug reports may contain sensitive information, such as file paths and source code. Review reports before sharing them.
-- Only execute trusted Python scripts.
-
-## 🤝 Contributing
-
-Contributions, suggestions, and improvements are welcome!
-
-1. Fork the repository.
-2. Create a new branch.
-3. Make your changes.
-4. Test your changes.
-5. Submit a pull request.
-
-## 📜 License
-
-No license file is currently included. Add a license to specify the terms for using, modifying, and distributing this project.
 
 ---
 
-**Built with Python 🐍**
+## 📁 Repository Structure
+
+```text
+├── bug_reporter.py        # Core engine: BugReportGenerator, decorators, hooks
+├── main.py                # Command-line interface & interactive menu
+├── sample_code.py         # Sample test scenarios (ZeroDivisionError, KeyError, etc.)
+├── web_server.py          # Lightweight REST server & static file provider
+├── reports/               # Auto-generated .txt bug reports
+│   └── bug_report_*.txt
+└── frontend/              # Web Dashboard & Studio
+    ├── index.html         # Main dashboard interface
+    ├── css/
+    │   └── style.css      # Modern dark-mode glassmorphism styling
+    └── js/
+        └── app.js         # Reactive UI, studio synthesizer, and REST bindings
+```
+
+---
+
+## 📄 License
+This project is open-source under the [MIT License](LICENSE).

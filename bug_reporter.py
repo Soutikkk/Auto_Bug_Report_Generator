@@ -1,4 +1,3 @@
-```python
 """
 Auto Bug Report Generator - Core Engine
 =======================================
@@ -402,4 +401,3 @@ if __name__ == "__main__":
 
     if monitor.report_path:
         print("Generated report:", monitor.report_path)
-```
