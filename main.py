@@ -1,187 +1,388 @@
+```python
 """
 Auto Bug Report Generator - Command Line Interface (CLI)
 ========================================================
-This module serves as the user-facing entry point. It allows running:
-- Sample bug demonstrations.
-- Any arbitrary Python script with auto-reporting enabled.
-- Listing and viewing generated .txt bug reports.
-
-Both interactive menu mode and direct command-line arguments are supported.
+Features:
+- Run sample bug demonstrations.
+- Execute Python scripts with automatic error reporting.
+- List and view saved bug reports.
+- Support interactive and command-line modes.
 """
 
-import os
-import sys
 import argparse
 import runpy
+import sys
 from pathlib import Path
+
 from bug_reporter import BugReportGenerator, install_global_hook, logger
 import sample_code
 
 
-REPORTS_DIR = "reports"
+REPORTS_DIR = Path("reports")
 
+
+# ============================================================
+# REPORT MANAGEMENT
+# ============================================================
 
 def list_reports(reports_dir=REPORTS_DIR):
-    """List all generated bug report files in the reports folder."""
-    path = Path(reports_dir)
-    if not path.exists():
-        print(f"\n[Info] Reports directory '{reports_dir}' does not exist yet.")
+    """List saved bug reports, newest first."""
+
+    reports_path = Path(reports_dir)
+
+    if not reports_path.is_dir():
+        print(
+            f"\n[Info] Reports directory "
+            f"'{reports_path}' does not exist yet."
+        )
         return []
 
-    report_files = sorted(path.glob("*.txt"), key=lambda f: f.stat().st_mtime, reverse=True)
+    try:
+        report_files = sorted(
+            reports_path.glob("*.txt"),
+            key=lambda file: file.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError as err:
+        logger.error("Could not list reports: %s", err)
+        print(f"\n[Error] Could not list reports: {err}")
+        return []
+
     if not report_files:
-        print(f"\n[Info] No bug reports found in '{reports_dir}'.")
+        print(f"\n[Info] No bug reports found in '{reports_path}'.")
         return []
 
-    print("\n" + "=" * 65)
-    print(f" Saved Bug Reports in '{reports_dir}':")
-    print("=" * 65)
-    for index, file in enumerate(report_files, start=1):
-        file_size = file.stat().st_size
-        print(f" {index}. {file.name} ({file_size} bytes)")
-    print("=" * 65)
+    print("\n" + "=" * 75)
+    print(f" SAVED BUG REPORTS: {reports_path}")
+    print("=" * 75)
+
+    for index, file_path in enumerate(report_files, start=1):
+        try:
+            size = file_path.stat().st_size
+            print(f" {index:>3}. {file_path.name} ({size} bytes)")
+        except OSError:
+            print(f" {index:>3}. {file_path.name} (size unavailable)")
+
+    print("=" * 75)
     return report_files
 
 
-def view_report(file_path):
-    """Display the contents of a specific report file."""
-    path = Path(file_path)
-    if not path.exists():
-        print(f"\n[Error] Report file '{file_path}' was not found.")
-        return
+def view_report(file_path, reports_dir=REPORTS_DIR):
+    """Display a report from the configured reports directory."""
 
-    print("\n" + "~" * 78)
-    print(f" DISPLAYING REPORT: {path.name}")
-    print("~" * 78)
+    reports_path = Path(reports_dir).resolve()
+    requested_path = Path(file_path)
+
+    # Allow a filename or a path relative to the reports directory.
+    if not requested_path.is_absolute():
+        requested_path = reports_path / requested_path
+
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            print(f.read())
-    except OSError as e:
-        print(f"[Error] Could not read file '{path}': {e}")
-    print("~" * 78)
+        resolved_path = requested_path.resolve()
 
+        # Prevent accidentally opening files outside the reports folder.
+        if not resolved_path.is_relative_to(reports_path):
+            print("[Error] The requested file is outside the reports directory.")
+            return False
+
+        if not resolved_path.is_file():
+            print(f"\n[Error] Report file not found: {resolved_path.name}")
+            return False
+
+        if resolved_path.suffix.lower() != ".txt":
+            print("[Error] Only .txt report files can be viewed.")
+            return False
+
+        with resolved_path.open("r", encoding="utf-8") as report_file:
+            content = report_file.read()
+
+        print("\n" + "~" * 78)
+        print(f" REPORT: {resolved_path.name}")
+        print("~" * 78)
+        print(content)
+        print("~" * 78)
+        return True
+
+    except (OSError, UnicodeError, ValueError) as err:
+        logger.error("Unable to read report: %s", err)
+        print(f"\n[Error] Could not read report: {err}")
+        return False
+
+
+# ============================================================
+# SCRIPT EXECUTION
+# ============================================================
 
 def run_target_script(script_path, reports_dir=REPORTS_DIR):
     """
-    Execute a target Python script with the Auto Bug Reporter active.
-    If the target script encounters any unhandled exception,
-    a bug report is automatically generated and saved.
+    Execute a Python script with automatic bug reporting.
+
+    Unhandled exceptions are reported, and the CLI returns control
+    to its caller without terminating the interactive menu.
     """
-    path = Path(script_path)
-    if not path.is_file():
-        print(f"[Error] Script '{script_path}' does not exist or is not a valid file.")
-        return
 
-    print(f"\n[Runner] Executing '{path.name}' with Auto Bug Reporter active...")
-    print("-" * 65)
+    target_path = Path(script_path).expanduser()
 
-    # Attach global exception hook for unhandled exceptions in the script
-    install_global_hook(reports_dir=reports_dir)
+    if not target_path.is_file():
+        print(
+            f"\n[Error] Script does not exist or is not a file: "
+            f"{target_path}"
+        )
+        return False
 
-    # Execute target script in its own namespace
+    if target_path.suffix.lower() != ".py":
+        print("[Error] The target must be a Python (.py) file.")
+        return False
+
     try:
-        runpy.run_path(str(path), run_name="__main__")
-        print("-" * 65)
-        print(f"[Runner] '{path.name}' finished successfully without unhandled errors.")
-    except Exception as exc:
-        print("-" * 65)
-        generator = BugReportGenerator(reports_dir=reports_dir)
-        report_path, _ = generator.generate_report(type(exc), exc, exc.__traceback__)
-        print(f"[Runner] Script raised an uncaught exception: {type(exc).__name__}: {exc}")
-        if report_path:
-            print(f"[Runner] Bug report generated and saved to: {report_path}")
+        target_path = target_path.resolve()
+    except OSError as err:
+        print(f"[Error] Could not resolve script path: {err}")
+        return False
 
+    print(
+        f"\n[Runner] Executing '{target_path.name}' "
+        "with Auto Bug Reporter active..."
+    )
+    print("-" * 75)
+
+    # Install a hook for uncaught exceptions that reach the interpreter.
+    install_global_hook(reports_dir=str(reports_dir))
+
+    try:
+        runpy.run_path(str(target_path), run_name="__main__")
+
+        print("-" * 75)
+        print(
+            f"[Runner] '{target_path.name}' finished "
+            "without an uncaught exception."
+        )
+        return True
+
+    except SystemExit as exc:
+        # Preserve the target script's normal exit behavior without
+        # incorrectly treating SystemExit as an application bug.
+        print("-" * 75)
+
+        if exc.code not in (None, 0):
+            print(f"[Runner] Script exited with status: {exc.code}")
+            return False
+
+        print("[Runner] Script exited normally.")
+        return True
+
+    except Exception as exc:
+        print("-" * 75)
+
+        generator = BugReportGenerator(reports_dir=reports_dir)
+
+        report_path, _ = generator.generate_report(
+            type(exc),
+            exc,
+            exc.__traceback__,
+        )
+
+        print(
+            f"[Runner] Script failed with "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+        if report_path:
+            print(f"[Runner] Bug report saved to: {report_path}")
+        else:
+            print("[Runner] Failed to save the bug report.")
+
+        return False
+
+
+# ============================================================
+# INTERACTIVE MENU
+# ============================================================
 
 def interactive_menu():
-    """Run a beginner-friendly interactive console menu."""
+    """Display the interactive main menu."""
+
     while True:
-        print("\n" + "=" * 50)
-        print("    AUTO BUG REPORT GENERATOR - MAIN MENU")
-        print("=" * 50)
+        print("\n" + "=" * 55)
+        print("       AUTO BUG REPORT GENERATOR - MAIN MENU")
+        print("=" * 55)
         print(" 1. Run sample bug demonstrations")
         print(" 2. Run a Python script with bug monitoring")
-        print(" 3. List all saved bug reports")
+        print(" 3. List saved bug reports")
         print(" 4. View a bug report")
         print(" 5. Exit")
-        print("=" * 50)
+        print("=" * 55)
 
-        choice = input("Enter your choice (1-5): ").strip()
+        try:
+            choice = input("Enter your choice (1-5): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n\nExiting Auto Bug Report Generator.")
+            break
 
         if choice == "1":
-            sample_code.run_all_samples()
+            try:
+                sample_code.run_all_samples()
+            except Exception as exc:
+                logger.exception("Sample demonstration failed.")
+                generator = BugReportGenerator(
+                    reports_dir=REPORTS_DIR
+                )
+                report_path, _ = generator.generate_report(
+                    type(exc), exc, exc.__traceback__
+                )
+
+                if report_path:
+                    print(f"[Info] Bug report saved: {report_path}")
+
         elif choice == "2":
-            target = input("Enter the path to the Python script to run: ").strip().strip('"').strip("'")
+            target = input(
+                "Enter the Python script path: "
+            ).strip().strip('"').strip("'")
+
             if target:
                 run_target_script(target)
             else:
-                print("[Warning] No file path entered.")
+                print("[Warning] No script path entered.")
+
         elif choice == "3":
             list_reports()
+
         elif choice == "4":
             reports = list_reports()
-            if reports:
-                sub_choice = input(f"Enter report number (1-{len(reports)}) or filename: ").strip()
-                if sub_choice.isdigit() and 1 <= int(sub_choice) <= len(reports):
-                    view_report(reports[int(sub_choice) - 1])
-                elif sub_choice:
-                    view_report(sub_choice)
+
+            if not reports:
+                continue
+
+            selection = input(
+                f"Enter report number (1-{len(reports)}) "
+                "or filename: "
+            ).strip().strip('"').strip("'")
+
+            if selection.isdigit():
+                index = int(selection)
+
+                if 1 <= index <= len(reports):
+                    view_report(reports[index - 1].name)
+                else:
+                    print("[Error] Invalid report number.")
+
+            elif selection:
+                view_report(selection)
+
+            else:
+                print("[Warning] No report selected.")
+
         elif choice == "5":
             print("\nExiting Auto Bug Report Generator. Goodbye!\n")
             break
+
         else:
-            print("[Invalid Choice] Please select a number between 1 and 5.")
+            print("[Error] Please select a number between 1 and 5.")
 
 
-def parse_arguments():
-    """Parse command-line arguments using Python's standard argparse."""
+# ============================================================
+# COMMAND-LINE ARGUMENTS
+# ============================================================
+
+def parse_arguments(argv=None):
+    """Parse command-line options."""
+
     parser = argparse.ArgumentParser(
-        description="Auto Bug Report Generator: Automatically detect Python errors and generate detailed .txt bug reports."
+        description=(
+            "Automatically detect Python exceptions "
+            "and generate detailed text bug reports."
+        )
     )
-    parser.add_argument(
+
+    actions = parser.add_mutually_exclusive_group()
+
+    actions.add_argument(
         "--demo",
         action="store_true",
-        help="Run built-in sample error demonstrations (ZeroDivisionError, FileNotFoundError, KeyError)."
+        help="Run built-in sample error demonstrations.",
     )
-    parser.add_argument(
+
+    actions.add_argument(
         "--run",
         metavar="SCRIPT_PATH",
-        type=str,
-        help="Run a Python script with automatic bug report interception."
+        help="Execute a Python script with automatic error reporting.",
     )
-    parser.add_argument(
+
+    actions.add_argument(
         "--list",
         action="store_true",
-        help="List all saved bug reports."
+        help="List saved bug reports.",
     )
-    parser.add_argument(
+
+    actions.add_argument(
         "--view",
         metavar="REPORT_FILE",
-        type=str,
-        help="Display the contents of a specific bug report .txt file."
+        help="View a report by filename or path within the reports directory.",
     )
-    parser.add_argument(
+
+    actions.add_argument(
         "--interactive",
         action="store_true",
-        help="Start the interactive menu (default if no flags are provided)."
+        help="Launch the interactive menu.",
     )
-    return parser.parse_args()
+
+    parser.add_argument(
+        "--reports-dir",
+        default=str(REPORTS_DIR),
+        metavar="DIRECTORY",
+        help="Directory for generated reports (default: reports).",
+    )
+
+    return parser.parse_args(argv)
 
 
-def main():
-    args = parse_arguments()
+# ============================================================
+# APPLICATION ENTRY POINT
+# ============================================================
 
-    # If flags were supplied, execute corresponding actions
+def main(argv=None):
+    """Run the CLI application."""
+
+    args = parse_arguments(argv)
+    reports_dir = Path(args.reports_dir).expanduser()
+
     if args.demo:
-        sample_code.run_all_samples()
-    elif args.run:
-        run_target_script(args.run)
-    elif args.list:
-        list_reports()
-    elif args.view:
-        view_report(args.view)
-    elif args.interactive or len(sys.argv) == 1:
-        interactive_menu()
+        try:
+            sample_code.run_all_samples()
+            return 0
+        except Exception as exc:
+            logger.exception("Sample demonstrations failed.")
+
+            report_path, _ = BugReportGenerator(
+                reports_dir=reports_dir
+            ).generate_report(
+                type(exc), exc, exc.__traceback__
+            )
+
+            if report_path:
+                print(f"[Info] Bug report saved: {report_path}")
+
+            return 1
+
+    if args.run:
+        return 0 if run_target_script(
+            args.run, reports_dir=reports_dir
+        ) else 1
+
+    if args.list:
+        list_reports(reports_dir)
+        return 0
+
+    if args.view:
+        return 0 if view_report(
+            args.view, reports_dir=reports_dir
+        ) else 1
+
+    # Default behavior: interactive menu.
+    interactive_menu()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
+```
