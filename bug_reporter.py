@@ -1,13 +1,18 @@
+```python
 """
 Auto Bug Report Generator - Core Engine
 =======================================
-This module provides utilities to automatically catch exceptions, extract
-critical error diagnostics, and write clean, formatted bug reports to text files.
+Automatically captures exceptions, extracts diagnostic information,
+and saves structured bug reports to text files.
 
-Built using Python's standard library:
-- traceback: For extracting stack frames and formatting tracebacks.
-- datetime:  For timestamping the bug reports.
-- logging:   For logging operations, warnings, and error detection events.
+Uses Python's standard library:
+- os, sys: System and environment information
+- logging: Application logging
+- datetime: Timestamps
+- traceback: Exception diagnostics
+- pathlib: Cross-platform file handling
+- functools: Decorator metadata preservation
+- threading: Thread-safe report file generation
 """
 
 import os
@@ -15,74 +20,90 @@ import sys
 import logging
 import datetime
 import traceback
+import threading
 from pathlib import Path
 from functools import wraps
 
-# Setup module-level logger
+
+# ============================================================
+# LOGGER CONFIGURATION
+# ============================================================
+
 logger = logging.getLogger("AutoBugReporter")
+
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    formatter = logging.Formatter(
+        "[%(asctime)s] [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 class BugReportGenerator:
-    """
-    Manages error inspection, formatting, and file generation for bug reports.
-    """
+    """Extract, format, and save exception reports."""
+
+    _file_lock = threading.Lock()
 
     def __init__(self, reports_dir="reports"):
-        """
-        Initialize the generator with a destination directory for reports.
-        
-        :param reports_dir: Directory where report text files will be stored.
-        """
         self.reports_dir = Path(reports_dir)
         self._ensure_reports_directory()
 
     def _ensure_reports_directory(self):
-        """Safely create the reports directory if it doesn't already exist."""
+        """Create the report directory if it does not exist."""
         try:
             self.reports_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as err:
-            logger.error(f"Failed to create reports directory '{self.reports_dir}': {err}")
+            return True
+        except OSError:
+            logger.exception(
+                "Unable to create reports directory: %s",
+                self.reports_dir,
+            )
+            return False
 
-    def extract_error_details(self, exc_type, exc_value, exc_traceback):
-        """
-        Extract key details from an exception:
-        - Error type and message
-        - File name and line number
-        - Originating function/scope and code line
-        - Short formatted traceback
-        """
+    def extract_error_details(
+        self, exc_type, exc_value, exc_traceback
+    ):
+        """Extract exception information and traceback details."""
+
         try:
-            # 1. Error type and message
-            error_type = exc_type.__name__ if exc_type else "UnknownError"
-            error_message = str(exc_value) if exc_value else "No error message provided."
+            error_type = (
+                exc_type.__name__ if exc_type else "UnknownError"
+            )
+            error_message = (
+                str(exc_value)
+                if exc_value is not None
+                else "No error message provided."
+            )
 
-            # 2. Extract file name and line number from the traceback
             file_name = "Unknown"
             line_number = "Unknown"
-            code_line = "N/A"
             function_name = "Unknown"
+            code_line = "N/A"
 
-            if exc_traceback:
-                extracted_frames = traceback.extract_tb(exc_traceback)
-                if extracted_frames:
-                    # The last frame is where the exception was directly raised
-                    last_frame = extracted_frames[-1]
-                    file_name = os.path.abspath(last_frame.filename)
-                    line_number = last_frame.lineno
-                    function_name = last_frame.name
-                    code_line = last_frame.line or "N/A"
+            if exc_traceback is not None:
+                frames = traceback.extract_tb(exc_traceback)
 
-            # 3. Format traceback
-            if exc_traceback:
-                formatted_tb = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-            else:
-                formatted_tb = "No traceback available."
+                if frames:
+                    frame = frames[-1]
+                    file_name = os.path.abspath(frame.filename)
+                    line_number = frame.lineno
+                    function_name = frame.name
+                    code_line = frame.line or "N/A"
+
+            formatted_traceback = (
+                "".join(
+                    traceback.format_exception(
+                        exc_type, exc_value, exc_traceback
+                    )
+                ).strip()
+                if exc_traceback is not None
+                else "No traceback available."
+            )
 
             return {
                 "error_type": error_type,
@@ -91,189 +112,294 @@ class BugReportGenerator:
                 "line_number": line_number,
                 "function_name": function_name,
                 "code_line": code_line,
-                "traceback": formatted_tb.strip(),
+                "traceback": formatted_traceback,
             }
-        except Exception as internal_err:
-            logger.error(f"Failed to extract error details safely: {internal_err}")
+
+        except Exception:
+            logger.exception("Failed to extract exception details.")
+
             return {
                 "error_type": "ExtractorFailure",
-                "error_message": str(internal_err),
+                "error_message": "Could not extract exception details.",
                 "file_name": "Unknown",
                 "line_number": "Unknown",
                 "function_name": "Unknown",
                 "code_line": "N/A",
-                "traceback": "Traceback extraction encountered an internal error.",
+                "traceback": "Traceback extraction failed.",
             }
 
     def build_report_text(self, details, timestamp=None):
-        """
-        Format extracted error details into a structured, human-readable text report.
-        """
-        if timestamp is None:
-            timestamp = datetime.datetime.now()
+        """Build a readable text report."""
 
-        formatted_date = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = timestamp or datetime.datetime.now().astimezone()
+        formatted_date = timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+        separator = "=" * 78
 
         report_lines = [
-            "=" * 78,
-            "                        AUTO BUG REPORT GENERATOR",
-            "=" * 78,
+            separator,
+            "                    AUTO BUG REPORT GENERATOR",
+            separator,
             f"1. Date & Time       : {formatted_date}",
             f"2. Error Type        : {details['error_type']}",
             f"3. Error Message     : {details['error_message']}",
             f"4. File Name         : {details['file_name']}",
             f"5. Line Number       : {details['line_number']}",
-            f"6. Function / Scope  : {details['function_name']}()",
+            f"6. Function / Scope  : {details['function_name']}",
             f"7. Failing Code Line : {details['code_line']}",
-            "=" * 78,
-            "SHORT TRACEBACK:",
-            "=" * 78,
+            separator,
+            "TRACEBACK:",
+            separator,
             details["traceback"],
-            "=" * 78,
+            separator,
             "SYSTEM CONTEXT:",
-            "=" * 78,
+            separator,
             f"Python Version       : {sys.version.split()[0]}",
             f"Operating System     : {sys.platform}",
             f"Execution Directory  : {os.getcwd()}",
-            "=" * 78,
-            "                     END OF REPORT",
-            "=" * 78,
+            separator,
+            "                       END OF REPORT",
+            separator,
+            "",
         ]
 
         return "\n".join(report_lines)
 
+    @staticmethod
+    def _sanitize_filename(value):
+        """Keep filename components safe and portable."""
+        cleaned = "".join(
+            char for char in value
+            if char.isalnum() or char in ("_", "-")
+        )
+        return cleaned[:80] or "Bug"
+
     def save_report(self, report_text, error_type="Error", timestamp=None):
-        """
-        Save the bug report text to a unique .txt file in the reports directory.
-        
-        :return: Path to the generated report file, or None if saving failed.
-        """
-        if timestamp is None:
-            timestamp = datetime.datetime.now()
+        """Save a report to a uniquely named UTF-8 text file."""
 
-        # Sanitize error type for filename
-        clean_error_type = "".join(c for c in error_type if c.isalnum() or c in ("_", "-"))
-        if not clean_error_type:
-            clean_error_type = "Bug"
+        timestamp = timestamp or datetime.datetime.now().astimezone()
+        clean_error_type = self._sanitize_filename(error_type)
 
-        filename = f"bug_report_{clean_error_type}_{timestamp.strftime('%Y%m%d_%H%M%S')}.txt"
-        file_path = self.reports_dir / filename
-
-        # Avoid collision if multiple reports generated in the same second
-        counter = 1
-        while file_path.exists():
-            file_path = self.reports_dir / f"bug_report_{clean_error_type}_{timestamp.strftime('%Y%m%d_%H%M%S')}_{counter}.txt"
-            counter += 1
+        timestamp_string = timestamp.strftime("%Y%m%d_%H%M%S_%f")
+        filename = (
+            f"bug_report_{clean_error_type}_{timestamp_string}.txt"
+        )
 
         try:
-            self._ensure_reports_directory()
-            with open(file_path, "w", encoding="utf-8") as file:
-                file.write(report_text)
-            logger.info(f"Bug report successfully saved to: {file_path}")
+            if not self._ensure_reports_directory():
+                return None
+
+            # Protect filename selection and file creation between
+            # threads using this class in the current process.
+            with self._file_lock:
+                file_path = self.reports_dir / filename
+                counter = 1
+
+                while file_path.exists():
+                    filename = (
+                        f"bug_report_{clean_error_type}_"
+                        f"{timestamp_string}_{counter}.txt"
+                    )
+                    file_path = self.reports_dir / filename
+                    counter += 1
+
+                with file_path.open(
+                    "x", encoding="utf-8", newline="\n"
+                ) as report_file:
+                    report_file.write(report_text)
+
+            logger.info("Bug report saved: %s", file_path)
             return str(file_path)
-        except OSError as err:
-            logger.critical(f"Failed to write bug report to '{file_path}': {err}")
+
+        except OSError:
+            logger.exception("Failed to save bug report.")
             return None
 
     def generate_report(self, exc_type, exc_value, exc_traceback):
-        """
-        High-level helper: extracts details, builds text, and writes to a .txt file.
-        
-        :return: Tuple of (report_file_path, details_dict)
-        """
+        """Extract, format, and save a report."""
+
         try:
-            timestamp = datetime.datetime.now()
-            details = self.extract_error_details(exc_type, exc_value, exc_traceback)
-            
-            logger.warning(
-                f"Detected {details['error_type']} at line {details['line_number']} in {os.path.basename(details['file_name'])}: {details['error_message']}"
+            timestamp = datetime.datetime.now().astimezone()
+
+            details = self.extract_error_details(
+                exc_type, exc_value, exc_traceback
             )
-            
-            report_text = self.build_report_text(details, timestamp=timestamp)
-            saved_path = self.save_report(report_text, error_type=details["error_type"], timestamp=timestamp)
+
+            logger.warning(
+                "Detected %s at line %s in %s: %s",
+                details["error_type"],
+                details["line_number"],
+                os.path.basename(details["file_name"]),
+                details["error_message"],
+            )
+
+            report_text = self.build_report_text(
+                details, timestamp=timestamp
+            )
+
+            saved_path = self.save_report(
+                report_text,
+                error_type=details["error_type"],
+                timestamp=timestamp,
+            )
+
             return saved_path, details
-        except Exception as unexpected_err:
-            logger.critical(f"Unexpected failure inside generate_report: {unexpected_err}")
+
+        except Exception:
+            # Do not replace the original application exception
+            # with an exception raised by the reporting engine.
+            logger.exception("Unexpected bug-report generation failure.")
             return None, {}
 
 
-# Default global instance
+# ============================================================
+# CONVENIENCE FUNCTIONS
+# ============================================================
+
 default_generator = BugReportGenerator()
 
 
-def generate_bug_report(exc_type, exc_value, exc_traceback, reports_dir="reports"):
-    """Convenience functional wrapper around BugReportGenerator.generate_report."""
-    generator = BugReportGenerator(reports_dir=reports_dir)
-    return generator.generate_report(exc_type, exc_value, exc_traceback)
+def generate_bug_report(
+    exc_type, exc_value, exc_traceback, reports_dir="reports"
+):
+    """Generate a report using the requested output directory."""
 
+    generator = BugReportGenerator(reports_dir=reports_dir)
+    return generator.generate_report(
+        exc_type, exc_value, exc_traceback
+    )
+
+
+# ============================================================
+# GLOBAL EXCEPTION HOOK
+# ============================================================
 
 def install_global_hook(reports_dir="reports"):
     """
-    Install a global system exception hook using sys.excepthook.
-    Whenever any uncaught exception occurs anywhere in Python,
-    a bug report is automatically generated and saved.
+    Install a hook for uncaught exceptions in the main thread.
+
+    KeyboardInterrupt and SystemExit are delegated to Python's
+    default exception handler without generating bug reports.
     """
+
     generator = BugReportGenerator(reports_dir=reports_dir)
 
-    def auto_bug_report_excepthook(exc_type, exc_value, exc_traceback):
-        # Do not catch keyboard interrupt (Ctrl+C) as a bug report
-        if issubclass(exc_type, KeyboardInterrupt):
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    def auto_bug_report_excepthook(exc_type, exc_value, exc_tb):
+        if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
             return
 
-        logger.error("Intercepted unhandled exception via global excepthook.")
-        generator.generate_report(exc_type, exc_value, exc_traceback)
-        
-        # Call Python's standard exception handler to also print to stderr
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        try:
+            logger.error("Intercepted an unhandled exception.")
+            generator.generate_report(exc_type, exc_value, exc_tb)
+        except Exception:
+            logger.exception("The global exception hook failed.")
+        finally:
+            # Preserve Python's normal traceback output.
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
 
     sys.excepthook = auto_bug_report_excepthook
-    logger.info("Auto Bug Report Generator global hook installed.")
+    logger.info("Global exception hook installed.")
 
+
+# ============================================================
+# CONTEXT MANAGER
+# ============================================================
 
 class MonitorErrors:
     """
-    Context manager to monitor a specific block of code for errors.
-    
-    Usage:
-        with MonitorErrors(reraise=False):
+    Monitor a block of code and generate a report on failure.
+
+    Example:
+        with MonitorErrors(reraise=False) as monitor:
             risky_operation()
+
+        print(monitor.report_path)
     """
 
     def __init__(self, reports_dir="reports", reraise=True):
         self.generator = BugReportGenerator(reports_dir=reports_dir)
         self.reraise = reraise
         self.report_path = None
+        self.details = {}
 
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        if exc_type is not None:
-            self.report_path, _ = self.generator.generate_report(exc_type, exc_value, exc_traceback)
-            # If reraise is False, suppress exception and allow code to continue safely
-            return not self.reraise
-        return False
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        if exc_type is None:
+            return False
 
+        self.report_path, self.details = (
+            self.generator.generate_report(
+                exc_type, exc_value, exc_tb
+            )
+        )
+
+        # Returning True suppresses the exception.
+        return not self.reraise
+
+
+# ============================================================
+# DECORATOR
+# ============================================================
 
 def auto_report(reports_dir="reports", reraise=True):
     """
-    Decorator to wrap any function with automatic bug reporting.
-    
-    Usage:
-        @auto_report(reraise=False)
-        def my_function():
-            ...
+    Automatically generate reports when a function raises an error.
+
+    Example:
+        @auto_report(reraise=True)
+        def divide(a, b):
+            return a / b
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
+
             except Exception as exc:
-                generator = BugReportGenerator(reports_dir=reports_dir)
-                generator.generate_report(type(exc), exc, exc.__traceback__)
+                generator = BugReportGenerator(
+                    reports_dir=reports_dir
+                )
+                generator.generate_report(
+                    type(exc), exc, exc.__traceback__
+                )
+
                 if reraise:
                     raise
+
+                return None
+
         return wrapper
+
     return decorator
+
+
+# ============================================================
+# EXAMPLE USAGE
+# ============================================================
+
+if __name__ == "__main__":
+
+    @auto_report(reports_dir="reports", reraise=True)
+    def divide_numbers(a, b):
+        return a / b
+
+    try:
+        divide_numbers(10, 0)
+
+    except ZeroDivisionError:
+        print("An error occurred. Check the reports directory.")
+
+    # Example of using the context manager:
+    with MonitorErrors(
+        reports_dir="reports", reraise=False
+    ) as monitor:
+        result = 10 / 0
+
+    if monitor.report_path:
+        print("Generated report:", monitor.report_path)
+```
