@@ -1,93 +1,136 @@
+
 """
 Auto Bug Report Generator - Sample Demonstrations
-=================================================
-This file demonstrates various ways to use the Auto Bug Report Generator
-in real-world Python code.
+==================================================
 
-It includes 3 common bug scenarios:
-1. ZeroDivisionError   - Demonstrated using the @auto_report decorator
-2. FileNotFoundError   - Demonstrated using the MonitorErrors context manager
-3. KeyError            - Demonstrated using the global sys.excepthook
+Demonstrates three ways to automatically generate bug reports:
+
+1. ZeroDivisionError  - Using @auto_report decorator
+2. FileNotFoundError  - Using MonitorErrors context manager
+3. KeyError           - Using global sys.excepthook
+
+All generated reports are stored in the 'reports/' directory.
 """
 
+from pathlib import Path
 from bug_reporter import auto_report, MonitorErrors, install_global_hook
 
 
-# ----------------------------------------------------------------------
-# Scenario 1: ZeroDivisionError with @auto_report Decorator
-# ----------------------------------------------------------------------
-@auto_report(reports_dir="reports", reraise=False)
+# Configuration
+REPORTS_DIR = "reports"
+
+
+# ------------------------------------------------------------------
+# Scenario 1: ZeroDivisionError using Decorator
+# ------------------------------------------------------------------
+
+@auto_report(reports_dir=REPORTS_DIR, reraise=False)
 def calculate_average(total_score, number_of_students):
-    """
-    Computes an average score.
-    Fails with ZeroDivisionError when number_of_students is 0.
-    The @auto_report decorator intercepts the error and logs a report.
-    """
-    print(f"\n[Demo 1] Calculating average for {number_of_students} students...")
+    """Calculate average marks of students."""
+
+    print("\n[DEMO 1] Calculating student average...")
+
     average = total_score / number_of_students
-    print(f"Average: {average}")
+
+    print(f"Average score: {average:.2f}")
     return average
 
 
-# ----------------------------------------------------------------------
-# Scenario 2: FileNotFoundError with MonitorErrors Context Manager
-# ----------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Scenario 2: FileNotFoundError using Context Manager
+# ------------------------------------------------------------------
+
 def load_configuration_file(file_name="missing_settings.json"):
-    """
-    Attempts to read a configuration file.
-    Uses 'with MonitorErrors' so the program generates a report
-    and keeps running without crashing.
-    """
-    print(f"\n[Demo 2] Attempting to read config file '{file_name}'...")
-    with MonitorErrors(reports_dir="reports", reraise=False) as monitor:
-        with open(file_name, "r") as f:
-            content = f.read()
-            print(f"Config loaded: {content}")
+    """Load configuration from a file safely."""
+
+    print(f"\n[DEMO 2] Loading configuration: {file_name}")
+
+    with MonitorErrors(
+        reports_dir=REPORTS_DIR,
+        reraise=False
+    ) as monitor:
+
+        with open(file_name, "r", encoding="utf-8") as file:
+            content = file.read()
+            print("Configuration loaded successfully!")
+            print(content)
 
     if monitor.report_path:
-        print(f"-> Handled FileNotFoundError safely! Saved report: {monitor.report_path}")
+        print(f"Bug report generated: {monitor.report_path}")
 
 
-# ----------------------------------------------------------------------
-# Scenario 3: KeyError with Global Exception Hook
-# ----------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Scenario 3: KeyError using Global Exception Hook
+# ------------------------------------------------------------------
+
 def parse_user_profile():
-    """
-    Processes a dictionary that lacks a mandatory key.
-    """
-    print("\n[Demo 3] Parsing user profile dictionary...")
+    """Extract account information from a user dictionary."""
+
+    print("\n[DEMO 3] Processing user profile...")
+
     user_data = {
         "username": "alex99",
         "email": "alex@example.com"
     }
-    # Attempting to access non-existent key 'account_id'
+
+    # This key does not exist, causing KeyError.
     account_id = user_data["account_id"]
+
     return account_id
 
 
+# ------------------------------------------------------------------
+# Main Function
+# ------------------------------------------------------------------
+
 def run_all_samples():
-    """Run all demonstration scenarios sequentially."""
+
     print("=" * 65)
-    print(" Running Auto Bug Report Generator Demos")
+    print("       AUTO BUG REPORT GENERATOR - DEMONSTRATION")
     print("=" * 65)
 
-    # 1. Run decorator demo (safe, reraise=False)
-    calculate_average(total_score=500, number_of_students=0)
+    # Create reports directory if it does not exist.
+    Path(REPORTS_DIR).mkdir(parents=True, exist_ok=True)
 
-    # 2. Run context manager demo (safe, reraise=False)
+    # Scenario 1
+    print("\nRunning Scenario 1: ZeroDivisionError")
+
+    try:
+        calculate_average(
+            total_score=500,
+            number_of_students=0
+        )
+    except Exception as error:
+        print(f"Unexpected error: {error}")
+
+    # Scenario 2
+    print("\nRunning Scenario 2: FileNotFoundError")
+
     load_configuration_file("non_existent_database.ini")
 
-    # 3. Direct demo with context manager for KeyError
-    print("\n[Demo 3] Handling unexpected KeyError safely...")
-    with MonitorErrors(reports_dir="reports", reraise=False) as monitor:
+    # Scenario 3
+    print("\nRunning Scenario 3: KeyError")
+
+    with MonitorErrors(
+        reports_dir=REPORTS_DIR,
+        reraise=False
+    ) as monitor:
+
         parse_user_profile()
+
     if monitor.report_path:
-        print(f"-> Handled KeyError safely! Saved report: {monitor.report_path}")
+        print(f"Bug report generated: {monitor.report_path}")
 
+    # Completion message
     print("\n" + "=" * 65)
-    print(" Demos completed! Check the 'reports/' folder for generated .txt reports.")
+    print("       ALL DEMONSTRATIONS COMPLETED")
     print("=" * 65)
+    print(f"Check the '{REPORTS_DIR}/' directory for bug reports.")
 
+
+# ------------------------------------------------------------------
+# Program Entry Point
+# ------------------------------------------------------------------
 
 if __name__ == "__main__":
     run_all_samples()
